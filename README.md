@@ -1,2 +1,3 @@
 # ScienceHardDrives
-# ScienceHardDrives
+
+This mod revisits my older ScienceContainers mod for Kerbal Space Program and adds functionality that I originally wanted to add to them. ScienceData is now stored in hard drives that have a limited capacity, require ElectricCharge and time to transfer ScienceData to them. Along with the new PartModule, the mod includes a manager KSPAddon that simplifies the transfer of ScienceData.
