@@ -54,6 +54,7 @@
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y "$(TargetDir)$(TargetFileName)" "$(ProjectDir)GameData\$(SolutionName)\$(ProjectName)\Plugins\"
 xcopy /S /Y "$(ProjectDir)GameData\*" "C:\Users\Thomas Fuller\Programming\Kerbal Space Program\GameData\"
+"C:\Program Files\7-zip\7z" a "$(ProjectDir)$(ProjectName).zip" "$(ProjectDir)GameData"
 "C:\Users\Thomas Fuller\Programming\Kerbal Space Program\KSP.exe"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
