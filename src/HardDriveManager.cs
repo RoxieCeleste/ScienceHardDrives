@@ -65,6 +65,12 @@ namespace ScienceHardDrives {
 
 		private Dictionary<ScienceHardDrive, Dictionary<ScienceData, IScienceDataContainer>> queues = new Dictionary<ScienceHardDrive, Dictionary<ScienceData, IScienceDataContainer>>();
 
+		private GUISkin[] skin_array;
+		private int skinInt;
+
+		private Texture2D[] texs;
+		private Vector2 texScroll;
+
 		#endregion
 
 		#region Properties
@@ -106,9 +112,12 @@ namespace ScienceHardDrives {
 			RenderingManager.AddToPostDrawQueue(0, OnDraw);
 			GameEvents.onVesselChange.Add(CheckVessel);
 			GameEvents.onVesselWasModified.Add(CheckVessel);
+			//skin_array = Resources.FindObjectsOfTypeAll(typeof(GUISkin)) as GUISkin[];
+			skinInt = 0;
+			texs = (Resources.FindObjectsOfTypeAll(typeof(Texture2D)) as Texture2D[]).Where(t => t.name.IndexOf("resultsdialog") >= 0).OrderBy(t => t.name).ToArray();
 		}
 
-		internal void OnDestroy() {
+		public void OnDestroy() {
 			instance = null;
 			RenderingManager.RemoveFromPostDrawQueue(0, OnDraw);
 			GameEvents.onVesselChange.Add(CheckVessel);
@@ -121,13 +130,39 @@ namespace ScienceHardDrives {
 
 		private void OnDraw() {
 			if(isVisible) {
-				GUI.skin = null;
-				windowPos = GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager");
+				GUI.skin = null;//skin_array[skinInt];
+				//windowPos = GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager");
 				GUI.skin = null;
 			}
 		}
 
 		private void OnWindow(int indowId) {
+			GUILayout.BeginVertical();
+
+			GUIStyle style = new GUIStyle((Resources.FindObjectsOfTypeAll(typeof(GUISkin)) as GUISkin[]).First(s => s.name.Equals("GameSkin")).window);
+			style.normal.background = Texture2D.whiteTexture;
+
+			/*if(GUILayout.Button("Skin")) {
+				if(++skinInt >= skin_array.Length) {
+					skinInt = 0;
+				}
+				print(skin_array[skinInt].name);
+			}*/
+
+			texScroll = GUILayout.BeginScrollView(texScroll, GUILayout.Height(500f), GUILayout.Width(700f));
+			GUILayout.BeginHorizontal(style);
+			foreach(Texture2D t in texs) {
+				GUILayout.BeginVertical();
+
+				GUILayout.Label(t);
+				GUILayout.Label(t.name);
+
+				GUILayout.EndVertical();
+			}
+			GUILayout.EndHorizontal();
+			GUILayout.EndScrollView();
+
+
 			GUILayout.BeginHorizontal(GUILayout.Width(700f), GUILayout.Height(250f));
 
 			GUILayout.BeginVertical(GUILayout.Width(350f));
@@ -209,6 +244,8 @@ namespace ScienceHardDrives {
 			}
 
 			GUILayout.EndScrollView();
+			GUILayout.EndVertical();
+
 			GUILayout.EndVertical();
 
 			GUILayout.EndHorizontal();

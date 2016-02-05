@@ -15,6 +15,8 @@ namespace ScienceHardDrives {
 		protected List<ScienceData> storedData = new List<ScienceData>();
 		protected bool xfering = false;
 
+		public bool viewing = false;
+
 		#endregion
 
 		#region Properties
@@ -263,7 +265,7 @@ namespace ScienceHardDrives {
 						}
 
 						secTotal = secRemaining = data.dataAmount / transferRate;
-						msg = new ScreenMessage("<color=#99ff00ff>Transfering " + data.title + " to " + part.partInfo.title + ":  0%</color>", (float)secTotal + 5, ScreenMessageStyle.UPPER_LEFT);
+						msg = new ScreenMessage("<color=#99ff00ff>Transfering " + data.title + " to " + part.partInfo.title + ":  0%</color>", (float)secTotal + 5f, ScreenMessageStyle.UPPER_LEFT);
 
 						ScreenMessages.PostScreenMessage(msg);
 						while(secRemaining > 0 && Mathf.Round((float)part.RequestResource("ElectricCharge", .1 * activePowerUsage) * 10000) == .1 * activePowerUsage * 10000) {
