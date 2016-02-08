@@ -4,349 +4,256 @@ using UnityEngine;
 
 namespace ScienceHardDrives {
 
-	public class QueuePacket {
-		protected readonly IScienceDataContainer _container;
-		protected readonly ScienceData _data;
-		protected readonly ScienceHardDrive _drive;
-
-		public IScienceDataContainer container {
-			get {
-				return _container;
-
-			}
-		}
-
-		public ScienceData data {
-			get {
-				return _data;
-			}
-		}
-
-		public ScienceHardDrive drive {
-			get {
-				return _drive;
-			}
-		}
-
-		public QueuePacket(ScienceHardDrive drive, IScienceDataContainer container, ScienceData data) {
-			_container = container;
-			_data = data;
-			_drive = drive;
-		}
-
-
-	}
-
 	[KSPAddon(KSPAddon.Startup.Flight, false)]
 	public class HardDriveManager : MonoBehaviour {
 
-		public static HardDriveManager instance;
-
 		#region Fields
 
-		protected Rect windowPos = new Rect();
+		protected static bool isVisable;
 
-		protected bool _isVisible;
+		protected static Rect windowPos;
+		protected static Vector2 scrollPos;
 
-		private Vector2 HDDScrollPos;
-		private Vector2 SCScrollPos;
+		protected static ScienceHardDrive[] drives;
 
-		private Vector2 HDDDataScrollPos;
-		private Vector2 SCDataScrollPos;
+		protected static Part[] containers;
+		protected static List<Part> viewing;
 
-		private ScienceHardDrive[] drives;
-		private Part[] containers;
+		protected static ScienceHardDrive selectedDrive;
+		protected static ScienceData selectedData;
 
-		private ScienceHardDrive _selectedDrive;
-		private Part _selectedContainer;
+		protected static GUISkin skin;
 
-		private bool xferNonrerunnable = false;
-		private QueuePacket queuePacket = null;
+		protected static string dataResultText;
+		protected static string dataSizeText;
+		protected static string dataRecoverText;
+		protected static string dataXmitText;
 
-		private Dictionary<ScienceHardDrive, Dictionary<ScienceData, IScienceDataContainer>> queues = new Dictionary<ScienceHardDrive, Dictionary<ScienceData, IScienceDataContainer>>();
-
-		private GUISkin[] skin_array;
-		private int skinInt;
-
-		private Texture2D[] texs;
-		private Vector2 texScroll;
-
-		#endregion
-
-		#region Properties
-
-		protected bool isVisible {
-			get {
-				return _isVisible;
-			}
-			set {
-				_isVisible = value;
-			}
-		}
-
-		private ScienceHardDrive selectedDrive {
-			get {
-				return _selectedDrive;
-			}
-			set {
-				_selectedDrive = value;
-			}
-		}
-
-		private Part selectedContainer {
-			get {
-				return _selectedContainer;
-			}
-			set {
-				_selectedContainer = value;
-			}
-		}
+		protected static float dataValue;
+		protected static float dataXmitValue;
+		protected static float dataRefValue;
+		protected static float dataValueAfterRec;
+		protected static float dataValueAfterXmit;
 
 		#endregion
 
-		#region Create/Destroy
+		#region Create/Destroy Methods
 
 		public void Awake() {
-			instance = this;
-			isVisible = false;
 			RenderingManager.AddToPostDrawQueue(0, OnDraw);
-			GameEvents.onVesselChange.Add(CheckVessel);
-			GameEvents.onVesselWasModified.Add(CheckVessel);
-			//skin_array = Resources.FindObjectsOfTypeAll(typeof(GUISkin)) as GUISkin[];
-			skinInt = 0;
-			texs = (Resources.FindObjectsOfTypeAll(typeof(Texture2D)) as Texture2D[]).Where(t => t.name.IndexOf("resultsdialog") >= 0).OrderBy(t => t.name).ToArray();
+			GameEvents.onVesselChange.Add(OnVesselChange);
+			GameEvents.onVesselWasModified.Add(OnVesselWasModified);
+			windowPos = new Rect();
+			scrollPos = new Vector2();
+			isVisable = false;
+			skin = DargonUtils.managerSkin;
+
 		}
 
 		public void OnDestroy() {
-			instance = null;
 			RenderingManager.RemoveFromPostDrawQueue(0, OnDraw);
-			GameEvents.onVesselChange.Add(CheckVessel);
-			GameEvents.onVesselWasModified.Remove(CheckVessel);
+			GameEvents.onVesselChange.Remove(OnVesselChange);
+			GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
 		}
 
 		#endregion
 
-		#region GUI
+		#region GUI Methods
 
-		private void OnDraw() {
-			if(isVisible) {
-				GUI.skin = null;//skin_array[skinInt];
-				//windowPos = GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager");
-				GUI.skin = null;
+		public static void OnDraw() {
+			if(isVisable) {
+				GUI.skin = skin;
+				windowPos = KSPUtil.ClampRectToScreen(GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager"));
 			}
 		}
 
-		private void OnWindow(int indowId) {
+		public static void OnWindow(int WindowID) {
+			string title;
+
+			GUILayout.BeginHorizontal();
+
+			#region Left Side
 			GUILayout.BeginVertical();
 
-			GUIStyle style = new GUIStyle((Resources.FindObjectsOfTypeAll(typeof(GUISkin)) as GUISkin[]).First(s => s.name.Equals("GameSkin")).window);
-			style.normal.background = Texture2D.whiteTexture;
+			#region Hard Drive Selection
+			scrollPos = GUILayout.BeginScrollView(scrollPos, skin.FindStyle("selectBox"), GUILayout.Height(188f));
+			
+			foreach(ScienceHardDrive drive in drives) {
+				GUILayout.BeginHorizontal();
 
-			/*if(GUILayout.Button("Skin")) {
-				if(++skinInt >= skin_array.Length) {
-					skinInt = 0;
+				if(drive.GetScienceCount() > 0) {
+					if(GUILayout.Button(drive.viewing ? "-" : "+", skin.FindStyle("expandbutton"))) {
+						drive.viewing ^= true;
+
+						if(selectedData != null && drive.GetData().Contains(selectedData)) {
+							selectedData = null;
+						}
+					}
 				}
-				print(skin_array[skinInt].name);
-			}*/
+				else {
+					GUILayout.Label("-", skin.FindStyle("expandLabel"));
+				}
 
-			texScroll = GUILayout.BeginScrollView(texScroll, GUILayout.Height(500f), GUILayout.Width(700f));
-			GUILayout.BeginHorizontal(style);
-			foreach(Texture2D t in texs) {
-				GUILayout.BeginVertical();
-
-				GUILayout.Label(t);
-				GUILayout.Label(t.name);
-
-				GUILayout.EndVertical();
-			}
-			GUILayout.EndHorizontal();
-			GUILayout.EndScrollView();
-
-
-			GUILayout.BeginHorizontal(GUILayout.Width(700f), GUILayout.Height(250f));
-
-			GUILayout.BeginVertical(GUILayout.Width(350f));
-			GUILayout.Label("Hard Drives");
-
-			HDDScrollPos = GUILayout.BeginScrollView(HDDScrollPos, GUILayout.Height(100f));
-			foreach(ScienceHardDrive d in drives) {
-				if(GUILayout.Button(d.part.partInfo.title + " \t" + d.freeSpace + "/" + d.capacity + " Mits Free")) {
-					if(selectedDrive == d) {
+				if(GUILayout.Button((title = drive.part.partInfo.title).Length > 30 ? (title.Substring(0, 30) + "...") : title, skin.FindStyle(drive == selectedDrive ? "selectButtonDown" : "selectButtonUp"))) {
+					selectedData = null;
+					if(selectedDrive == drive) {
 						selectedDrive = null;
 					}
 					else {
-						selectedDrive = d;
+						selectedDrive = drive;
 					}
 				}
-			}
-			GUILayout.EndScrollView();
 
-			GUILayout.Label(selectedDrive != null ? selectedDrive.part.partInfo.title : "No Hard Drive Selected");
+				GUILayout.EndHorizontal();
 
-			HDDDataScrollPos = GUILayout.BeginScrollView(HDDDataScrollPos);
-			if(selectedDrive != null) {
-				foreach(ScienceData d in selectedDrive.GetData()) {
-					if(GUILayout.Button(d.title + ": \t" + d.dataAmount + " Mits")) {
-						selectedDrive.ReviewDataItem(d);
-					}
-				}
-			}
-			GUILayout.EndScrollView();
-			GUILayout.EndVertical();
+				#region Data Selection
 
-			GUILayout.BeginVertical(GUILayout.Width(350f));
-			GUILayout.Label("Science Containers");
-
-			SCScrollPos = GUILayout.BeginScrollView(SCScrollPos, GUILayout.Height(100f));
-			foreach(Part p in containers) {
-				if(GUILayout.Button(p.partInfo.title)) {
-					if(selectedContainer == p) {
-						selectedContainer = null;
-					}
-					else {
-						selectedContainer = p;
-					}
-				}
-			}
-			GUILayout.EndScrollView();
-
-			GUILayout.Label(selectedContainer != null ? selectedContainer.partInfo.title : "No Part Selected");
-
-			SCDataScrollPos = GUILayout.BeginScrollView(SCDataScrollPos);
-
-			if(selectedContainer != null) {
-				foreach(IScienceDataContainer c in selectedContainer.FindModulesImplementing<IScienceDataContainer>()) {
-					foreach(ScienceData d in c.GetData()) {
+				if(drive.viewing) {
+					foreach(ScienceData data in drive.GetData().OrderBy(d => d.title)) {
 						GUILayout.BeginHorizontal();
 
-						if(GUILayout.Button(d.title + ": \t" + d.dataAmount + " Mits")) {
-							c.ReviewDataItem(d);
-						}
+						GUILayout.Label("\u2514", skin.FindStyle("expandLabel"));
+						if(GUILayout.Button((title = data.title).Count() > 30 ? (title.Substring(0, 30) + "...") : title, skin.FindStyle(data == selectedData ? "selectButtonDown" : "selectButtonUp"))) {
+							selectedDrive = null;
 
-						if(GUILayout.Button("Xfer") && selectedDrive != null) {
-							if(c.IsRerunnable() || xferNonrerunnable) {
-								queueData(selectedDrive, c, d);
+							if(selectedData == data) {
+								selectedData = null;
 							}
 							else {
-								queuePacket = new QueuePacket(selectedDrive, c, d);
+								selectedData = data;
 
-								DialogOption<bool>[] dialogOptions = new DialogOption<bool>[2];
-								dialogOptions[0] = new DialogOption<bool>("Transfer Anyways", new Callback<bool>(promptCallBack), true);
-								dialogOptions[1] = new DialogOption<bool>("Abort Transfer", new Callback<bool>(promptCallBack), false);
-								PopupDialog.SpawnPopupDialog(new MultiOptionDialog("Transfering science from a nonrerunnable experiment will cause it to become inoperable.", "Warning", HighLogic.Skin, dialogOptions), false, HighLogic.Skin);
+								ScienceSubject subjectId = ResearchAndDevelopment.GetSubjectByID(selectedData.subjectID);
+								float scienceMultiplier = HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+
+								dataRefValue = ResearchAndDevelopment.GetReferenceDataValue(selectedData.dataAmount, subjectId) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+								dataValue = ResearchAndDevelopment.GetScienceValue(selectedData.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+								dataXmitValue = ResearchAndDevelopment.GetScienceValue(selectedData.dataAmount, subjectId, selectedData.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+								dataValueAfterRec = ResearchAndDevelopment.GetNextScienceValue(selectedData.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+								dataValueAfterXmit = ResearchAndDevelopment.GetNextScienceValue(selectedData.dataAmount, subjectId, selectedData.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+
+								dataResultText = ResearchAndDevelopment.GetResults(subjectId.id);
+								dataSizeText = "Data Size: " + selectedData.dataAmount + " Mits";
+								dataRecoverText = "Recovery: +" + dataValue.ToString("0.0") + " Science";
+								dataXmitText = "Transmit: +" + dataXmitValue.ToString("0.0") + " Science";
 							}
-
 						}
-
 						GUILayout.EndHorizontal();
 					}
 				}
+				#endregion
 			}
 
 			GUILayout.EndScrollView();
-			GUILayout.EndVertical();
+			#endregion
 
-			GUILayout.EndVertical();
+			#region Info
+			GUILayout.BeginHorizontal();
+
+			if(selectedDrive != null) {
+			}
+			else if(selectedData != null) {
+				GUILayout.BeginVertical();
+
+				GUIStyle resultField = skin.FindStyle("resultfield");
+				GUIStyle icons = skin.FindStyle("icons");
+				GUIStyle iconstext = skin.FindStyle("iconstext");
+
+				GUILayout.Label(selectedData.title);
+				GUILayout.Box(dataResultText);
+
+				GUILayout.BeginHorizontal(resultField);
+				GUILayout.Box(DargonUtils.dataIcon, icons);
+				GUILayout.Label(dataSizeText, iconstext);
+				GUILayout.EndHorizontal();
+
+				GUILayout.BeginHorizontal(resultField);
+				GUILayout.Box(DargonUtils.scienceIcon, icons);
+				GUILayout.Label(dataRecoverText, iconstext);
+				GUILayout.FlexibleSpace();
+				GUIUtil.Layout.ProgressBar(0f, dataValue / dataRefValue, skin.FindStyle("progressBarBG"), skin.FindStyle("progressBarFill"), GUILayout.Width(100f));
+				GUIUtil.ProgressBar(GUILayoutUtility.GetLastRect(), 0f, dataValue / dataRefValue - dataValueAfterRec / dataRefValue, skin.FindStyle("progressBarFill2"));
+				GUILayout.EndHorizontal();
+
+				GUILayout.BeginHorizontal(resultField);
+				GUILayout.Box(DargonUtils.scienceIcon, icons);
+				GUILayout.Label(dataXmitText, iconstext);
+				GUILayout.FlexibleSpace();
+				GUIUtil.Layout.ProgressBar(0f, dataXmitValue / dataRefValue, skin.FindStyle("progressBarBG"), skin.FindStyle("progressBarFill3"), GUILayout.Width(100f));
+				GUIUtil.ProgressBar(GUILayoutUtility.GetLastRect(), 0f, dataXmitValue / dataRefValue - dataValueAfterXmit / dataRefValue, skin.FindStyle("progressBarFill4"));
+				GUILayout.EndHorizontal();
+				GUILayout.EndVertical();
+
+				#region Buttons
+				GUILayout.BeginVertical();
+				GUILayout.FlexibleSpace();
+				GUILayout.Button("", skin.FindStyle("discard button"));
+				GUILayout.FlexibleSpace();
+				GUILayout.Button("", skin.FindStyle("lab button"));
+				GUILayout.FlexibleSpace();
+				GUILayout.Button((dataXmitValue / dataRefValue * 100f) + "%", skin.FindStyle("transmit button"));
+				GUILayout.FlexibleSpace();
+				GUILayout.Button("", skin.FindStyle("transferButton"));
+				GUILayout.FlexibleSpace();
+
+
+
+				GUILayout.EndVertical();
+
+				#endregion
+
+			}
+			else {
+			}
 
 			GUILayout.EndHorizontal();
 
+			#endregion
+
+			GUILayout.EndVertical();
+			#endregion
+
+			GUILayout.EndHorizontal();
 			GUI.DragWindow();
+
 		}
 
 		#endregion
 
-		#region Queue Methods
+		#region Event Methods
 
-		private void queueData(ScienceHardDrive drive, IScienceDataContainer container, ScienceData data) {
-			Dictionary<ScienceData, IScienceDataContainer> queue;
-
-			if(!queues.Any(kvp => kvp.Value.ContainsKey(data))) {
-				if(queues.TryGetValue(drive, out queue)) {
-					float queueAmount = 0;
-
-					foreach(ScienceData d in queue.Keys) {
-						queueAmount += d.dataAmount;
-					}
-
-					if(data.dataAmount + queueAmount <= drive.freeSpace) {
-						print("Queue for " + drive.part.partInfo.title + " found and queuing " + data.title);
-						queue.Add(data, container);
-					}
-					else {
-						print("Not enough room to queue: " + data.title);
-					}
-				}
-				else {
-					if(data.dataAmount <= drive.freeSpace) {
-						print(drive.part.partInfo.title + " doesn't have a queue. Making one and queuing " + data.title);
-						queues.Add(drive, (queue = new Dictionary<ScienceData, IScienceDataContainer> { { data, container } }));
-					}
-					else {
-						print("Not enough room to queue: " + data.title);
-					}
-				}
-
-				if(!drive.isXfering()) {
-					print(drive.part.partInfo.title + " starting data transfer");
-					StartCoroutine(drive.transferData());
-				}
-				else {
-					print(drive.part.partInfo.title + " is already tranfering data");
-				}
-			}
-			else {
-				print(data.title + " is already queued");
-			}
+		protected void OnVesselChange(Vessel vessel) {
+			UpdateDriveList();
 		}
 
-		public KeyValuePair<ScienceData, IScienceDataContainer> getNextInQueue(ScienceHardDrive drive) {
-			Dictionary<ScienceData, IScienceDataContainer> queue;
-			KeyValuePair<ScienceData, IScienceDataContainer> kvp = new KeyValuePair<ScienceData, IScienceDataContainer>();
-
-			if(queues.TryGetValue(drive, out queue)) {
-				if(queue.Count > 0) {
-					kvp = queue.First();
-				}
-			}
-
-			return kvp;
-		}
-
-		public void removeFromQueue(ScienceHardDrive drive, ScienceData data) {
-			Dictionary<ScienceData, IScienceDataContainer> queue;
-
-			if(queues.TryGetValue(drive, out queue)) {
-				queue.Remove(data);
-				if(queue.Count == 0) {
-					queues.Remove(drive);
-				}
-			}
-		}
-
-		public void clearQueue(ScienceHardDrive drive) {
-			queues.Remove(drive);
+		protected void OnVesselWasModified(Vessel vessel) {
+			UpdateDriveList();
 		}
 
 		#endregion
 
 		#region Other Methods
 
-		public void CheckVessel(Vessel vessel) {
+		protected static void UpdateDriveList() {
 			drives = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ScienceHardDrive>().OrderBy(d => d.part.partInfo.title).ToArray();
-			containers = FlightGlobals.ActiveVessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).OrderBy(p => p.partInfo.title).ToArray();
-			if(drives.Count() > 0) {
-				isVisible = true;
+			isVisable = drives.Length > 0;
+			if(!drives.Contains(selectedDrive)) {
+				selectedData = null;
+				selectedDrive = null;
 			}
-			else {
-				isVisible = false;
-			}
-			selectedContainer = null;
-			selectedDrive = null;
+		}
+
+		public static void ReviewDrive(ScienceHardDrive drive) {
+			ReviewData(drive, drive.GetData().OrderBy(d => d.title).ToArray()[0]);
+		}
+
+		public static void ReviewData(ScienceHardDrive drive, ScienceData data) {
+			isVisable = true;
+			drive.viewing = true;
+			selectedData = data;
 		}
 
 		private void promptCallBack(bool xfer) {
 			if(xfer) {
-				queueData(queuePacket.drive, queuePacket.container, queuePacket.data);
 			}
 		}
 

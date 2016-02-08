@@ -50,10 +50,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="src\Utils.cs" />
+    <Compile Include="src\DargonUtils.cs" />
     <Compile Include="src\HardDriveManager.cs" />
-    <Compile Include="src\NewHardDriveManager.cs" />
+    <Compile Include="src\QueueManager.cs" />
     <Compile Include="src\ScienceHardDrive.cs" />
+    <Compile Include="src\Utils.cs" />
+    <Compile Include="src\HardDriveManager_old.cs" />
+    <Compile Include="src\ScienceHardDrive_old.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="src\VesselSettings.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
