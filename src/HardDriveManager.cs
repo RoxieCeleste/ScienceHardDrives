@@ -5,22 +5,16 @@ using UnityEngine;
 namespace ScienceHardDrives {
 
 	[KSPAddon(KSPAddon.Startup.Flight, false)]
-	public class HardDriveManager : MonoBehaviour {
+	class HardDriveManager : MonoBehaviour {
 
 		#region Fields
 
 		protected static bool isVisable;
 
-		protected static Rect windowPos;
 		protected static Vector2 scrollPos;
+		protected static Rect windowPos;
 
-		protected static ScienceHardDrive[] drives;
-
-		protected static Part[] containers;
-		protected static List<Part> viewing;
-
-		protected static ScienceHardDrive selectedDrive;
-		protected static ScienceData selectedData;
+		protected static VesselSettings vesselSettings;
 
 		protected static GUISkin skin;
 
@@ -40,20 +34,24 @@ namespace ScienceHardDrives {
 		#region Create/Destroy Methods
 
 		public void Awake() {
-			RenderingManager.AddToPostDrawQueue(0, OnDraw);
-			GameEvents.onVesselChange.Add(OnVesselChange);
-			GameEvents.onVesselWasModified.Add(OnVesselWasModified);
-			windowPos = new Rect();
-			scrollPos = new Vector2();
+			DargonUtils.Print("HardDriveManager started.");
+
 			isVisable = false;
+
+			scrollPos = new Vector2();
+			windowPos = new Rect();
+
 			skin = DargonUtils.managerSkin;
 
+			RenderingManager.AddToPostDrawQueue(0, OnDraw);
+			GameEvents.onVesselChange.Add(OnVesselChange);
 		}
 
 		public void OnDestroy() {
 			RenderingManager.RemoveFromPostDrawQueue(0, OnDraw);
 			GameEvents.onVesselChange.Remove(OnVesselChange);
-			GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
+
+			DargonUtils.Print("HardDriveManager destroyed.");
 		}
 
 		#endregion
@@ -70,23 +68,20 @@ namespace ScienceHardDrives {
 		public static void OnWindow(int WindowID) {
 			string title;
 
-			GUILayout.BeginHorizontal();
-
-			#region Left Side
 			GUILayout.BeginVertical();
 
-			#region Hard Drive Selection
+			#region Container Selection
 			scrollPos = GUILayout.BeginScrollView(scrollPos, skin.FindStyle("selectBox"), GUILayout.Height(188f));
-			
-			foreach(ScienceHardDrive drive in drives) {
+
+			foreach(IScienceDataContainer container in vesselSettings.containers) {
 				GUILayout.BeginHorizontal();
 
-				if(drive.GetScienceCount() > 0) {
-					if(GUILayout.Button(drive.viewing ? "-" : "+", skin.FindStyle("expandbutton"))) {
-						drive.viewing ^= true;
+				if(container.GetScienceCount() > 0) {
+					if(GUILayout.Button(vesselSettings.expanded.Contains(container) ? "-" : "+", skin.FindStyle("expandbutton"))) {
+						vesselSettings.ExpandOrCollapseContainer(container);
 
-						if(selectedData != null && drive.GetData().Contains(selectedData)) {
-							selectedData = null;
+						if(vesselSettings.selectedData != null && container.GetData().Contains(vesselSettings.selectedData)) {
+							vesselSettings.selectedData = null;
 						}
 					}
 				}
@@ -94,47 +89,24 @@ namespace ScienceHardDrives {
 					GUILayout.Label("-", skin.FindStyle("expandLabel"));
 				}
 
-				if(GUILayout.Button((title = drive.part.partInfo.title).Length > 30 ? (title.Substring(0, 30) + "...") : title, skin.FindStyle(drive == selectedDrive ? "selectButtonDown" : "selectButtonUp"))) {
-					selectedData = null;
-					if(selectedDrive == drive) {
-						selectedDrive = null;
-					}
-					else {
-						selectedDrive = drive;
-					}
+				if(GUILayout.Button((title = ((PartModule)container).part.partInfo.title).Length > 40 ? (title.Substring(0, 40) + "...") : title, skin.FindStyle(container == vesselSettings.selectedContainer ? "selectButtonDown" : "selectButtonUp"))) {
+					vesselSettings.SelectContainer(container);
 				}
 
 				GUILayout.EndHorizontal();
 
 				#region Data Selection
 
-				if(drive.viewing) {
-					foreach(ScienceData data in drive.GetData().OrderBy(d => d.title)) {
+				if(vesselSettings.expanded.Contains(container)) {
+					foreach(ScienceData data in container.GetData().OrderBy(d => d.title)) {
 						GUILayout.BeginHorizontal();
 
 						GUILayout.Label("\u2514", skin.FindStyle("expandLabel"));
-						if(GUILayout.Button((title = data.title).Count() > 30 ? (title.Substring(0, 30) + "...") : title, skin.FindStyle(data == selectedData ? "selectButtonDown" : "selectButtonUp"))) {
-							selectedDrive = null;
+						if(GUILayout.Button((title = data.title).Count() > 40 ? (title.Substring(0, 40) + "...") : title, skin.FindStyle(data == vesselSettings.selectedData ? "selectButtonDown" : "selectButtonUp"))) {
+							vesselSettings.SelectData(data);
 
-							if(selectedData == data) {
-								selectedData = null;
-							}
-							else {
-								selectedData = data;
-
-								ScienceSubject subjectId = ResearchAndDevelopment.GetSubjectByID(selectedData.subjectID);
-								float scienceMultiplier = HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-
-								dataRefValue = ResearchAndDevelopment.GetReferenceDataValue(selectedData.dataAmount, subjectId) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-								dataValue = ResearchAndDevelopment.GetScienceValue(selectedData.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-								dataXmitValue = ResearchAndDevelopment.GetScienceValue(selectedData.dataAmount, subjectId, selectedData.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-								dataValueAfterRec = ResearchAndDevelopment.GetNextScienceValue(selectedData.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-								dataValueAfterXmit = ResearchAndDevelopment.GetNextScienceValue(selectedData.dataAmount, subjectId, selectedData.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
-
-								dataResultText = ResearchAndDevelopment.GetResults(subjectId.id);
-								dataSizeText = "Data Size: " + selectedData.dataAmount + " Mits";
-								dataRecoverText = "Recovery: +" + dataValue.ToString("0.0") + " Science";
-								dataXmitText = "Transmit: +" + dataXmitValue.ToString("0.0") + " Science";
+							if(data == vesselSettings.selectedData) {
+								UpdateScienceInfo(data);
 							}
 						}
 						GUILayout.EndHorizontal();
@@ -147,18 +119,27 @@ namespace ScienceHardDrives {
 			#endregion
 
 			#region Info
-			GUILayout.BeginHorizontal();
 
-			if(selectedDrive != null) {
+			if(vesselSettings.selectedContainer != null) {
 			}
-			else if(selectedData != null) {
+			else if(vesselSettings.selectedData != null) {
+				GUILayout.BeginHorizontal();
+
+				#region Data Info
 				GUILayout.BeginVertical();
 
 				GUIStyle resultField = skin.FindStyle("resultfield");
 				GUIStyle icons = skin.FindStyle("icons");
 				GUIStyle iconstext = skin.FindStyle("iconstext");
 
-				GUILayout.Label(selectedData.title);
+				GUILayout.BeginHorizontal();
+				GUILayout.Label(vesselSettings.selectedData.title);
+				if(GUILayout.Button("X", skin.GetStyle("deselectButton"))) {
+					vesselSettings.selectedContainer = null;
+					vesselSettings.selectedData = null;
+				}
+				GUILayout.EndHorizontal();
+
 				GUILayout.Box(dataResultText);
 
 				GUILayout.BeginHorizontal(resultField);
@@ -182,37 +163,28 @@ namespace ScienceHardDrives {
 				GUIUtil.ProgressBar(GUILayoutUtility.GetLastRect(), 0f, dataXmitValue / dataRefValue - dataValueAfterXmit / dataRefValue, skin.FindStyle("progressBarFill4"));
 				GUILayout.EndHorizontal();
 				GUILayout.EndVertical();
+				#endregion
 
 				#region Buttons
 				GUILayout.BeginVertical();
-				GUILayout.FlexibleSpace();
 				GUILayout.Button("", skin.FindStyle("discard button"));
-				GUILayout.FlexibleSpace();
 				GUILayout.Button("", skin.FindStyle("lab button"));
-				GUILayout.FlexibleSpace();
+				GUILayout.Space(15);
 				GUILayout.Button((dataXmitValue / dataRefValue * 100f) + "%", skin.FindStyle("transmit button"));
-				GUILayout.FlexibleSpace();
+				GUILayout.Space(15);
 				GUILayout.Button("", skin.FindStyle("transferButton"));
-				GUILayout.FlexibleSpace();
-
-
-
 				GUILayout.EndVertical();
-
 				#endregion
 
+				GUILayout.EndHorizontal();
 			}
 			else {
 			}
 
-			GUILayout.EndHorizontal();
-
 			#endregion
 
 			GUILayout.EndVertical();
-			#endregion
 
-			GUILayout.EndHorizontal();
 			GUI.DragWindow();
 
 		}
@@ -222,39 +194,45 @@ namespace ScienceHardDrives {
 		#region Event Methods
 
 		protected void OnVesselChange(Vessel vessel) {
-			UpdateDriveList();
-		}
-
-		protected void OnVesselWasModified(Vessel vessel) {
-			UpdateDriveList();
+			DargonUtils.Print("Vessel was changed");
+			if(FlightGlobals.ActiveVessel == vessel) {
+				vesselSettings = vessel.GetComponent<VesselSettings>();
+				isVisable = vesselSettings.containers.Count() > 0;
+			}
 		}
 
 		#endregion
 
 		#region Other Methods
 
-		protected static void UpdateDriveList() {
-			drives = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ScienceHardDrive>().OrderBy(d => d.part.partInfo.title).ToArray();
-			isVisable = drives.Length > 0;
-			if(!drives.Contains(selectedDrive)) {
-				selectedData = null;
-				selectedDrive = null;
+		public static void ReviewContainer(IScienceDataContainer container) {
+			if(vesselSettings.SelectData(container.GetData().OrderBy(d => d.title).First())) {
+				UpdateScienceInfo(vesselSettings.selectedData);
+				isVisable = true;
 			}
 		}
 
-		public static void ReviewDrive(ScienceHardDrive drive) {
-			ReviewData(drive, drive.GetData().OrderBy(d => d.title).ToArray()[0]);
-		}
-
-		public static void ReviewData(ScienceHardDrive drive, ScienceData data) {
-			isVisable = true;
-			drive.viewing = true;
-			selectedData = data;
-		}
-
-		private void promptCallBack(bool xfer) {
-			if(xfer) {
+		public static void ReviewData(ScienceData data) {
+			if(vesselSettings.SelectData(data)) {
+				UpdateScienceInfo(vesselSettings.selectedData);
+				isVisable = true;
 			}
+		}
+
+		public static void UpdateScienceInfo(ScienceData data) {
+			ScienceSubject subjectId = ResearchAndDevelopment.GetSubjectByID(data.subjectID);
+			float scienceMultiplier = HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+
+			dataRefValue = ResearchAndDevelopment.GetReferenceDataValue(data.dataAmount, subjectId) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+			dataValue = ResearchAndDevelopment.GetScienceValue(data.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+			dataXmitValue = ResearchAndDevelopment.GetScienceValue(data.dataAmount, subjectId, data.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+			dataValueAfterRec = ResearchAndDevelopment.GetNextScienceValue(data.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+			dataValueAfterXmit = ResearchAndDevelopment.GetNextScienceValue(data.dataAmount, subjectId, data.transmitValue) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+
+			dataResultText = ResearchAndDevelopment.GetResults(subjectId.id);
+			dataSizeText = "Data Size: " + data.dataAmount + " Mits";
+			dataRecoverText = "Recovery: +" + dataValue.ToString("0.0") + " Science";
+			dataXmitText = "Transmit: +" + dataXmitValue.ToString("0.0") + " Science";
 		}
 
 		#endregion

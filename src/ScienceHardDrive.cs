@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
@@ -68,7 +67,7 @@ namespace ScienceHardDrives {
 		#region KSPEvents
 		[KSPEvent(guiName = "Review Data", guiActive = true, active = true, name = "ReviewDataEvent")]
 		public void ReviewDataEvent() {
-			HardDriveManager.ReviewDrive(this);
+			HardDriveManager.ReviewContainer(this);
 		}
 
 		#endregion
@@ -155,11 +154,11 @@ namespace ScienceHardDrives {
 		}
 
 		public void ReviewData() {
-			HardDriveManager.ReviewDrive(this);
+			HardDriveManager.ReviewContainer(this);
 		}
 
 		public void ReviewDataItem(ScienceData data) {
-			HardDriveManager.ReviewData(this, data);
+			HardDriveManager.ReviewData(data);
 		}
 
 		#endregion
@@ -175,7 +174,6 @@ namespace ScienceHardDrives {
 				usedSpace += data.dataAmount;
 			}
 		}
-
 
 		#endregion
 

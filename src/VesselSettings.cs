@@ -1,32 +1,74 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using UnityEngine;
 
 namespace ScienceHardDrives {
 
 	class VesselSettings : VesselModule {
 
 		#region Fields
+		protected Vessel vessel;
 
-		protected List<IScienceDataContainer> containers;
-		protected List<IScienceDataContainer> viewing;
+		protected List<IScienceDataContainer> _expanded;
+		protected List<IScienceDataContainer> _containers;
 
-		protected IScienceDataContainer selectedContainer;
-		protected ScienceData selectedData;
+		protected IScienceDataContainer _selectedContainer;
+		protected ScienceData _selectedData;
 
 		#endregion
 
-		#region VesselModule Methods
+		#region Properties
+
+		public List<IScienceDataContainer> expanded {
+			get {
+				return new List<IScienceDataContainer>(_expanded);
+			}
+		}
+
+		public List<IScienceDataContainer> containers {
+			get {
+				return new List<IScienceDataContainer>(_containers);
+			}
+		}
+
+		public IScienceDataContainer selectedContainer {
+			set {
+				SelectContainer(value);
+			}
+			get {
+				return _selectedContainer;
+			}
+		}
+
+		public ScienceData selectedData {
+			set {
+				SelectData(value);
+			}
+			get {
+				return _selectedData;
+			}
+		}
+
+		#endregion
+
+		#region Create/Destroy Methods
 
 		public void Awake() {
-			GameEvents.onVesselWasModified.Add(OnVesselWasModified);
-			viewing = new List<IScienceDataContainer>();
-			selectedContainer = null;
-			selectedData = null;
+			vessel = this.GetComponent<Vessel>();
+
+			DargonUtils.Print("VesselSettings for " + vessel.vesselName + " started.");
+
+			_expanded = new List<IScienceDataContainer>();
+			_selectedContainer = null;
+			_selectedData = null;
 
 			UpdateContainerLists();
+			GameEvents.onVesselWasModified.Add(OnVesselWasModified);
+		}
+
+		public void OnDestroy() {
+			GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
+
+			DargonUtils.Print("DargonUtils for " + vessel.vesselName + " destroyed.");
 		}
 
 		#endregion
@@ -34,7 +76,8 @@ namespace ScienceHardDrives {
 		#region Event Methods
 
 		public void OnVesselWasModified(Vessel vessel) {
-			if(this.GetComponent<Vessel>() == vessel) {
+			if(this.vessel == vessel) {
+				DargonUtils.Print(this.vessel.vesselName + " was modified.");
 				UpdateContainerLists();
 			}
 		}
@@ -44,37 +87,100 @@ namespace ScienceHardDrives {
 		#region Other Methods
 
 		protected void UpdateContainerLists() {
-			containers = this.GetComponent<Vessel>().FindPartModulesImplementing<IScienceDataContainer>().ToList();
+			DargonUtils.Print("Updateing vessel's container lists.");
 
-			viewing = viewing.Intersect(containers).ToList();
+			_containers = vessel.FindPartModulesImplementing<IScienceDataContainer>().OrderBy(c => ((PartModule)c).part.partInfo.title).ToList();
+			_expanded = _expanded.Intersect(_containers).ToList();
 
-			if(selectedContainer == null || !containers.Contains(selectedContainer)) {
-				selectedData = null;
+			if(_selectedContainer == null || !_containers.Contains(_selectedContainer)) {
 				selectedContainer = null;
 			}
-		}
 
-		public void SelectContainer(IScienceDataContainer container) {
-			if(container == null || containers.Contains(container)) {
-				selectedContainer = container;
+			if(_selectedData == null || _containers.Any(c => ((PartModule)c).part.flightID == _selectedData.container)) {
 				selectedData = null;
 			}
 		}
 
-		public void SelectData(IScienceDataContainer container, ScienceData data) {
-			if(data == null || container.GetData().Contains(data)) {
-				selectedData = data;
-				selectedContainer = null;
-			}
-		}
-
-		public void ToggleViewing(IScienceDataContainer container) {
-			if(container != null && containers.Contains(container)) {
-				if(viewing.Contains(container)) {
-					viewing.Remove(container);
+		public bool SelectContainer(IScienceDataContainer container) {
+			bool b = false;
+			if(container != null) {
+				if(_containers.Contains(container)) {
+					if(_selectedContainer != container) {
+						_selectedContainer = container;
+						_selectedData = null;
+						b = true;
+						DargonUtils.Print(((PartModule)container).part.partInfo.title + " was selected.");
+					}
+					else {
+						_selectedContainer = null;
+						DargonUtils.Print(((PartModule)container).part.partInfo.title + " was deselected.");
+					}
 				}
 				else {
-					viewing.Add(container);
+					DargonUtils.Print("The container doesn't exist in the avaliable containers.");
+				}
+			}
+			else {
+				_selectedContainer = null;
+				DargonUtils.Print("No container (null) was selected.");
+			}
+			return b;
+		}
+
+		public bool SelectData(ScienceData data) {
+			bool b = false;
+			if(data != null) {
+				if(_containers.Any(c => c.GetData().Contains(data))) {
+					if(_selectedData != data) {
+						_selectedContainer = null;
+						_selectedData = data;
+						ExpandContainer(containers.First(c => ((PartModule)c).part.flightID == data.container));
+						b = true;
+						DargonUtils.Print(data.title + " was selected.");
+					}
+					else {
+						_selectedData = null;
+						DargonUtils.Print(data.title + " was deselected.");
+					}
+				}
+				else {
+					DargonUtils.Print("The data doesn't exist in any of the avaliable containers.");
+				}
+			}
+			else {
+				_selectedData = null;
+				DargonUtils.Print("No data (null) was selected.");
+			}
+			return b;
+		}
+
+		public void ExpandOrCollapseContainer(IScienceDataContainer container) {
+			if(container != null && _containers.Contains(container)) {
+				if(_expanded.Contains(container)) {
+					DargonUtils.Print(((PartModule)container).part.partInfo.title + "'s ScienceData collapsed.");
+					_expanded.Remove(container);
+				}
+				else {
+					DargonUtils.Print(((PartModule)container).part.partInfo.title + "'s ScienceData expanded.");
+					_expanded.Add(container);
+				}
+			}
+		}
+
+		public void ExpandContainer(IScienceDataContainer container) {
+			if(container != null && _containers.Contains(container)) {
+				if(!_expanded.Contains(container)) {
+					DargonUtils.Print(((PartModule)container).part.partInfo.title + "'s ScienceData expanded.");
+					_expanded.Add(container);
+				}
+			}
+		}
+
+		public void CollapseContainer(IScienceDataContainer container) {
+			if(container != null && _containers.Contains(container)) {
+				if(_expanded.Contains(container)) {
+					DargonUtils.Print(((PartModule)container).part.partInfo.title + "'s ScienceData collapsed.");
+					_expanded.Remove(container);
 				}
 			}
 		}

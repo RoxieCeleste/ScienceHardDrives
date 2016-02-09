@@ -4,10 +4,11 @@ using UnityEngine;
 namespace ScienceHardDrives {
 
 	[KSPAddon(KSPAddon.Startup.MainMenu, true)]
-	public class DargonUtils : MonoBehaviour{
+	public class DargonUtils : MonoBehaviour {
 
 		#region Fields
 		private static bool ranOnce = false;
+		private static readonly bool debug = true;
 
 		internal static GUISkin gameSkin;
 		internal static GUISkin expSkin;
@@ -18,13 +19,31 @@ namespace ScienceHardDrives {
 		internal static Texture2D managerTransferNormal;
 		#endregion
 
+		#region Create/Destroy Methods
+
+		public void Start() {
+			Print("DargonUtils started.");
+		}
+
+		public void OnDestroy() {
+			Print("DargonUtils destroyed.");
+		}
+
+		#endregion
+
+		#region GUI
+
 		public void OnGUI() {
-			if(!ranOnce){
+			if(!ranOnce) {
 				ranOnce = true;
 				InitializeTextures();
 				InitializeSkins();
 			}
 		}
+
+		#endregion
+
+		#region Initialization Methods
 
 		private static void InitializeSkins() {
 			Print("Initializing Skins");
@@ -55,8 +74,17 @@ namespace ScienceHardDrives {
 			tempStyle.margin = new RectOffset(4, 0, 0, 0);
 			tempStyle.fixedHeight = 18f;
 			tempStyle.fixedWidth = 20f;
+			tempStyle.alignment = TextAnchor.MiddleCenter;
 			tempStyle.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 			Print("expandButton added.");
+
+			customStyles.Add(tempStyle = new GUIStyle(gameSkin.button));
+			tempStyle.name = "deselectButton";
+			tempStyle.margin = new RectOffset(4, 4, 2, 2);
+			tempStyle.fixedHeight = 22f;
+			tempStyle.fixedWidth = 22f;
+			tempStyle.alignment = TextAnchor.MiddleCenter;
+			tempStyle.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
 			customStyles.Add(tempStyle = new GUIStyle(gameSkin.button));
 			tempStyle.name = "selectButtonUp";
@@ -106,18 +134,26 @@ namespace ScienceHardDrives {
 			string textureLocation = "SirDargon/ScienceHardDrives/img/";
 			Texture2D[] textures = Resources.FindObjectsOfTypeAll(typeof(Texture2D)) as Texture2D[];
 
-			
+
 			dataIcon = AssetBase.GetTexture("resultsdialog_datasize");
 			scienceIcon = AssetBase.GetTexture("resultsdialog_scivalue");
 			managerTransferNormal = GameDatabase.Instance.GetTexture(textureLocation + "manager_transfer_normal", false);
 		}
+
+		#endregion
+
+		#region Utility Methods
 
 		internal static Color ConvertColor(int r, int g, int b) {
 			return new Color(r / 255f, g / 255f, b / 255f);
 		}
 
 		internal static void Print(string toPrint) {
-			print("SirDargon [SHD]: " + toPrint);
+			if(debug) {
+				print("SirDargon [SHD]: " + toPrint);
+			}
 		}
+
+		#endregion
 	}
 }
