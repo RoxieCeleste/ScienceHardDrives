@@ -54,9 +54,6 @@
     <Compile Include="src\HardDriveManager.cs" />
     <Compile Include="src\QueueManager.cs" />
     <Compile Include="src\ScienceHardDrive.cs" />
-    <Compile Include="src\Utils.cs" />
-    <Compile Include="src\HardDriveManager_old.cs" />
-    <Compile Include="src\ScienceHardDrive_old.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\VesselSettings.cs" />
@@ -65,6 +62,7 @@
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y "$(TargetDir)$(TargetFileName)" "$(ProjectDir)GameData\$(SolutionName)\$(ProjectName)\Plugins\"
 xcopy /S /Y "$(ProjectDir)GameData\*" "C:\Users\Thomas Fuller\Programming\Kerbal Space Program\GameData\"
+del "$(ProjectDir)$(ProjectName).zip"
 "C:\Program Files\7-zip\7z" a "$(ProjectDir)$(ProjectName).zip" "$(ProjectDir)GameData"
 "C:\Users\Thomas Fuller\Programming\Kerbal Space Program\KSP.exe"</PostBuildEvent>
   </PropertyGroup>

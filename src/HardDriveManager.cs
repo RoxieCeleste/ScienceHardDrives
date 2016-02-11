@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using UnityEngine;
 
 namespace ScienceHardDrives {
@@ -18,6 +17,8 @@ namespace ScienceHardDrives {
 
 		protected static GUISkin skin;
 
+		protected static IScienceDataContainer dataContainer;
+
 		protected static string dataResultText;
 		protected static string dataSizeText;
 		protected static string dataRecoverText;
@@ -29,12 +30,14 @@ namespace ScienceHardDrives {
 		protected static float dataValueAfterRec;
 		protected static float dataValueAfterXmit;
 
+		protected static float dataLabBoost;
+
 		#endregion
 
 		#region Create/Destroy Methods
 
 		public void Awake() {
-			DargonUtils.Print("HardDriveManager started.");
+			Print("HardDriveManager started.");
 
 			isVisable = false;
 
@@ -51,7 +54,7 @@ namespace ScienceHardDrives {
 			RenderingManager.RemoveFromPostDrawQueue(0, OnDraw);
 			GameEvents.onVesselChange.Remove(OnVesselChange);
 
-			DargonUtils.Print("HardDriveManager destroyed.");
+			Print("HardDriveManager destroyed.");
 		}
 
 		#endregion
@@ -61,17 +64,21 @@ namespace ScienceHardDrives {
 		public static void OnDraw() {
 			if(isVisable) {
 				GUI.skin = skin;
-				windowPos = KSPUtil.ClampRectToScreen(GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager"));
+				windowPos = KSPUtil.ClampRectToScreen(GUILayout.Window(170263, windowPos, OnWindow, "Hard Drive Manager", GUILayout.Height(500f), GUILayout.Width(375f)));
 			}
 		}
 
 		public static void OnWindow(int WindowID) {
 			string title;
 
+			if(GUI.Button(new Rect(windowPos.width - 21, 1, 20, 18), "_", skin.FindStyle("expandButton"))) {
+				isVisable = false;
+			}
+
 			GUILayout.BeginVertical();
 
 			#region Container Selection
-			scrollPos = GUILayout.BeginScrollView(scrollPos, skin.FindStyle("selectBox"), GUILayout.Height(188f));
+			scrollPos = GUILayout.BeginScrollView(scrollPos, skin.FindStyle("selectBox"), GUILayout.Height(188f), GUILayout.Width(382f));
 
 			foreach(IScienceDataContainer container in vesselSettings.containers) {
 				GUILayout.BeginHorizontal();
@@ -90,7 +97,12 @@ namespace ScienceHardDrives {
 				}
 
 				if(GUILayout.Button((title = ((PartModule)container).part.partInfo.title).Length > 40 ? (title.Substring(0, 40) + "...") : title, skin.FindStyle(container == vesselSettings.selectedContainer ? "selectButtonDown" : "selectButtonUp"))) {
-					vesselSettings.SelectContainer(container);
+					if(container == vesselSettings.selectedContainer) {
+						vesselSettings.SelectContainer(null);
+					}
+					else {
+						vesselSettings.SelectContainer(container);
+					}
 				}
 
 				GUILayout.EndHorizontal();
@@ -103,9 +115,12 @@ namespace ScienceHardDrives {
 
 						GUILayout.Label("\u2514", skin.FindStyle("expandLabel"));
 						if(GUILayout.Button((title = data.title).Count() > 40 ? (title.Substring(0, 40) + "...") : title, skin.FindStyle(data == vesselSettings.selectedData ? "selectButtonDown" : "selectButtonUp"))) {
-							vesselSettings.SelectData(data);
 
 							if(data == vesselSettings.selectedData) {
+								vesselSettings.SelectData(null);
+							}
+							else {
+								vesselSettings.SelectData(data);
 								UpdateScienceInfo(data);
 							}
 						}
@@ -117,6 +132,8 @@ namespace ScienceHardDrives {
 
 			GUILayout.EndScrollView();
 			#endregion
+
+			Rect temp = GUILayoutUtility.GetLastRect();
 
 			#region Info
 
@@ -167,12 +184,60 @@ namespace ScienceHardDrives {
 
 				#region Buttons
 				GUILayout.BeginVertical();
-				GUILayout.Button("", skin.FindStyle("discard button"));
-				GUILayout.Button("", skin.FindStyle("lab button"));
-				GUILayout.Space(15);
-				GUILayout.Button((dataXmitValue / dataRefValue * 100f) + "%", skin.FindStyle("transmit button"));
-				GUILayout.Space(15);
-				GUILayout.Button("", skin.FindStyle("transferButton"));
+				GUILayout.FlexibleSpace();
+				GUILayout.Space(5);
+				if(GUILayout.Button("", skin.FindStyle(dataContainer.IsRerunnable() ? "discard button" : "reset button"))) {
+					Print(vesselSettings.selectedData.title + " dumped.");
+
+					dataContainer.ReviewDataItem(vesselSettings.selectedData);
+					ExperimentsResultDialog.Instance.currentPage.OnDiscardData(vesselSettings.selectedData);
+					vesselSettings.selectedData = null;
+					if(dataContainer.GetData().Length == 0) {
+						vesselSettings.CollapseContainer(dataContainer);
+					}
+				}
+				if(GUILayout.Button("", skin.FindStyle("lab button"))) {
+					if(ModuleScienceLab.IsLabData(FlightGlobals.ActiveVessel, vesselSettings.selectedData)) {
+						Print(vesselSettings.selectedData.title + " is set to be sent to the lab.");
+
+						dataContainer.ReviewDataItem(vesselSettings.selectedData);
+						ExperimentsResultDialog.Instance.currentPage.OnSendToLab(vesselSettings.selectedData);
+						vesselSettings.selectedData = null;
+						if(dataContainer.GetData().Length == 0) {
+							vesselSettings.CollapseContainer(dataContainer);
+						}
+					}
+					else {
+						Print(vesselSettings.selectedData.title + " is not lab data.");
+					}
+				}
+				GUILayout.Space(5);
+				if(GUILayout.Button((dataXmitValue / dataRefValue * 100f) + "%", skin.FindStyle("transmit button"))) {
+					Print(vesselSettings.selectedData.title + " is set to be transmitted.");
+
+					dataContainer.ReviewDataItem(vesselSettings.selectedData);
+					ExperimentsResultDialog.Instance.currentPage.OnTransmitData(vesselSettings.selectedData);
+					vesselSettings.selectedData = null;
+					if(dataContainer.GetData().Length == 0) {
+						vesselSettings.CollapseContainer(dataContainer);
+					}
+				}
+				GUILayout.Space(5);
+				if(GUILayout.Button("", skin.FindStyle("transferButton"))) {
+					Print(vesselSettings.selectedData.title + " is set to be transfered.");
+
+					int i = 0;
+					Callback<ScienceHardDrive> driveSelectCallback = new Callback<ScienceHardDrive>(DriveSelectCallback);
+					DialogOption<ScienceHardDrive>[] dialogOptions = new DialogOption<ScienceHardDrive>[vesselSettings.containers.Where(c => c is ScienceHardDrive).Count() + 1];
+
+					foreach(ScienceHardDrive d in vesselSettings.containers.Where(c => c is ScienceHardDrive).ToArray()) {
+						dialogOptions[i++] = new DialogOption<ScienceHardDrive>(d.part.partInfo.title, driveSelectCallback, d);
+					}
+					dialogOptions[i] = new DialogOption<ScienceHardDrive>("Cancel", driveSelectCallback, null);
+
+					PopupDialog.SpawnPopupDialog(new MultiOptionDialog("Select which drive to transfer ScienceData to.", "", HighLogic.Skin, dialogOptions), false, HighLogic.Skin);
+				}
+				GUILayout.FlexibleSpace();
 				GUILayout.EndVertical();
 				#endregion
 
@@ -194,10 +259,46 @@ namespace ScienceHardDrives {
 		#region Event Methods
 
 		protected void OnVesselChange(Vessel vessel) {
-			DargonUtils.Print("Vessel was changed");
+			Print("Vessel was changed");
 			if(FlightGlobals.ActiveVessel == vessel) {
 				vesselSettings = vessel.GetComponent<VesselSettings>();
 				isVisable = vesselSettings.containers.Count() > 0;
+			}
+		}
+
+		#endregion
+
+		#region Callbacks
+
+		protected static void DriveSelectCallback(ScienceHardDrive drive) {
+			if(drive != null) {
+				IScienceDataContainer container = vesselSettings.containers.First(c => ((PartModule)c).part.flightID == vesselSettings.selectedData.container);
+
+				if(container.IsRerunnable()) {
+					QueueManager.instance.QueueDataForXfer(drive, container, vesselSettings.selectedData);
+					vesselSettings.selectedData = null;
+				}
+				else {
+					Callback<ScienceHardDrive> xferAnywaysCallback = new Callback<ScienceHardDrive>(XferAnywaysCallback);
+
+					DialogOption<ScienceHardDrive>[] dialogOptions = new DialogOption<ScienceHardDrive>[2];
+					dialogOptions[0] = new DialogOption<ScienceHardDrive>("Transfer Anyways", xferAnywaysCallback, drive);
+					dialogOptions[1] = new DialogOption<ScienceHardDrive>("Abort Transfer", xferAnywaysCallback, null);
+					PopupDialog.SpawnPopupDialog(new MultiOptionDialog("Transfering science from a nonrerunnable experiment will cause it to become inoperable.", "Warning", HighLogic.Skin, dialogOptions), false, HighLogic.Skin);
+				}
+			}
+			else {
+				Print("Transfer canceled.");
+			}
+		}
+
+		protected static void XferAnywaysCallback(ScienceHardDrive drive) {
+			if(drive != null) {
+				QueueManager.instance.QueueDataForXfer(drive, vesselSettings.containers.First(c => ((PartModule)c).part.flightID == vesselSettings.selectedData.container), vesselSettings.selectedData);
+				vesselSettings.selectedData = null;
+			}
+			else {
+				Print("Transfer canceled.");
 			}
 		}
 
@@ -220,8 +321,12 @@ namespace ScienceHardDrives {
 		}
 
 		public static void UpdateScienceInfo(ScienceData data) {
+			Print("Upating selected ScienceData information.");
+
 			ScienceSubject subjectId = ResearchAndDevelopment.GetSubjectByID(data.subjectID);
 			float scienceMultiplier = HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+
+			dataContainer = vesselSettings.containers.First(c => ((PartModule)c).part.flightID == data.container);
 
 			dataRefValue = ResearchAndDevelopment.GetReferenceDataValue(data.dataAmount, subjectId) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
 			dataValue = ResearchAndDevelopment.GetScienceValue(data.dataAmount, subjectId, 1f) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
@@ -233,6 +338,16 @@ namespace ScienceHardDrives {
 			dataSizeText = "Data Size: " + data.dataAmount + " Mits";
 			dataRecoverText = "Recovery: +" + dataValue.ToString("0.0") + " Science";
 			dataXmitText = "Transmit: +" + dataXmitValue.ToString("0.0") + " Science";
+
+
+		}
+
+		#endregion
+
+		#region Utility Methods
+
+		private static void Print(string toPrint) {
+			DargonUtils.Print("HDM", toPrint);
 		}
 
 		#endregion

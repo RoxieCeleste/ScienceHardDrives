@@ -18,6 +18,7 @@ namespace ScienceHardDrives {
 		#endregion
 
 		#region Properties
+
 		public float freeSpace {
 			get {
 				return capacity - usedSpace;
@@ -104,19 +105,19 @@ namespace ScienceHardDrives {
 
 			if(maxCapacity <= 0) {
 				maxCapacity = 1f;
-				DargonUtils.Print("Check config for " + part.partInfo + ", maxCapacity <= 0.");
+				Print("Check config for " + part.partInfo + ", maxCapacity <= 0.");
 			}
 			if(xferRate < 0) {
 				xferRate = 0;
-				DargonUtils.Print("Check config for " + part.partInfo + ", xferRate < 0.");
+				Print("Check config for " + part.partInfo + ", xferRate < 0.");
 			}
 			if(chunkSize <= 0) {
 				chunkSize = 1f;
-				DargonUtils.Print("Check config for " + part.partInfo + ", chunkSize < 1");
+				Print("Check config for " + part.partInfo + ", chunkSize < 1");
 			}
 			if(powerUsage < 0) {
 				powerUsage = 0f;
-				DargonUtils.Print("Check config for " + part.partInfo + ", powerUsage < 0");
+				Print("Check config for " + part.partInfo + ", powerUsage < 0");
 			}
 
 			if(state == StartState.Editor) {
@@ -146,7 +147,7 @@ namespace ScienceHardDrives {
 		}
 
 		public bool IsRerunnable() {
-			return false;
+			return true;
 		}
 
 		public void ReturnData(ScienceData data) {
@@ -154,19 +155,69 @@ namespace ScienceHardDrives {
 		}
 
 		public void ReviewData() {
-			HardDriveManager.ReviewContainer(this);
+			//HardDriveManager.ReviewContainer(this);
+			foreach(ScienceData data in storedData) {
+				ReviewDataItem(data);
+			}
 		}
 
 		public void ReviewDataItem(ScienceData data) {
-			HardDriveManager.ReviewData(data);
+			//HardDriveManager.ReviewData(data);
+			ExperimentsResultDialog.DisplayResult(new ExperimentResultDialogPage(
+				part,
+				data,
+				data.transmitValue,
+				ModuleScienceLab.GetBoostForVesselData(vessel, data),
+				data.transmitValue != 1f,
+				"Transmitting this data will result in a " + (1f - Mathf.Round(1000 * data.transmitValue) / 10) + "% loss in awarded Science.",
+				false,
+				ModuleScienceLab.IsLabData(vessel, data),
+				new Callback<ScienceData>(OnDiscardData),
+				new Callback<ScienceData>(OnKeepData),
+				new Callback<ScienceData>(OnTransmitData),
+				new Callback<ScienceData>(OnSendDataToLab)));
 		}
 
 		#endregion
 
 		#region ExperimentResultDialogPage Callbacks
+
+		public void OnDiscardData(ScienceData data) {
+			DumpData(data);
+		}
+
+		public void OnKeepData(ScienceData data) {
+		}
+
+		public void OnTransmitData(ScienceData data) {
+			List<IScienceDataTransmitter> transList = vessel.FindPartModulesImplementing<IScienceDataTransmitter>();
+			if(transList.Count > 0) {
+				IScienceDataTransmitter trans = transList.OrderBy(t => ScienceUtil.GetTransmitterScore(t)).First(t => t.CanTransmit());
+				if(trans != null) {
+					trans.TransmitData(new List<ScienceData> { data });
+					DumpData(data);
+				}
+				else {
+					ScreenMessages.PostScreenMessage("<color=#ff9900ff>No opperational transmitter on this vessel.</color>", 4f, ScreenMessageStyle.UPPER_CENTER);
+				}
+			}
+			else {
+				ScreenMessages.PostScreenMessage("<color=#ff9900ff>No transmitter on this vessel.</color>", 4f, ScreenMessageStyle.UPPER_CENTER);
+			}
+		}
+
+		public void OnSendDataToLab(ScienceData data) {
+
+		}
+
+		public void OnLabComplete(ScienceData data) {
+			ReviewDataItem(data);
+		}
+
 		#endregion
 
 		#region Other Methods
+
 		public void AddData(ScienceData data) {
 			if(data != null) {
 				storedData.Add(data);
@@ -175,7 +226,30 @@ namespace ScienceHardDrives {
 			}
 		}
 
+		public bool IsXfering() {
+			return xfering;
+		}
+
+		public bool StartXfering() {
+			bool b = false;
+			if(!xfering) {
+				b = true;
+				xfering = true;
+			}
+
+			return b;
+		}
+
+		public void StopXfering() {
+			xfering = false;
+		}
+
 		#endregion
 
+		#region Utility Methods
+		private static void Print(string toPrint) {
+			DargonUtils.Print("SHD", toPrint);
+		}
+		#endregion
 	}
 }

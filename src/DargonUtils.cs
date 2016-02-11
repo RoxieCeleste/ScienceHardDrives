@@ -17,6 +17,8 @@ namespace ScienceHardDrives {
 		internal static Texture2D dataIcon;
 		internal static Texture2D scienceIcon;
 		internal static Texture2D managerTransferNormal;
+		internal static Texture2D managerTransferOver;
+		internal static Texture2D managerTransferActive;
 		#endregion
 
 		#region Create/Destroy Methods
@@ -59,7 +61,7 @@ namespace ScienceHardDrives {
 
 			tempStyle = managerSkin.window;
 			tempStyle.padding = new RectOffset(8, 8, 20, 8);
-			tempStyle.fixedWidth = 375f;
+			//tempStyle.fixedWidth = 375f;
 			tempStyle.contentOffset = new Vector2(0, -18);
 			tempStyle.overflow = new RectOffset(10, 0, 0, 0);
 			Print("window modified");
@@ -72,23 +74,26 @@ namespace ScienceHardDrives {
 			customStyles.Add(tempStyle = new GUIStyle(gameSkin.button));
 			tempStyle.name = "expandButton";
 			tempStyle.margin = new RectOffset(4, 0, 0, 0);
+			tempStyle.padding = new RectOffset(0, 0, 0, 0);
 			tempStyle.fixedHeight = 18f;
 			tempStyle.fixedWidth = 20f;
 			tempStyle.alignment = TextAnchor.MiddleCenter;
 			tempStyle.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 			Print("expandButton added.");
 
-			customStyles.Add(tempStyle = new GUIStyle(gameSkin.button));
+			customStyles.Add(tempStyle = new GUIStyle(expSkin.button));
 			tempStyle.name = "deselectButton";
 			tempStyle.margin = new RectOffset(4, 4, 2, 2);
-			tempStyle.fixedHeight = 22f;
-			tempStyle.fixedWidth = 22f;
+			tempStyle.padding = new RectOffset(0, 0, 0, 0);
+			tempStyle.fixedHeight = 25f;
+			tempStyle.fixedWidth = 25f;
 			tempStyle.alignment = TextAnchor.MiddleCenter;
 			tempStyle.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
 			customStyles.Add(tempStyle = new GUIStyle(gameSkin.button));
 			tempStyle.name = "selectButtonUp";
 			tempStyle.margin = new RectOffset(0, 4, 0, 0);
+			tempStyle.padding = new RectOffset(0, 0, 0, 0);
 			tempStyle.fixedHeight = 18f;
 			tempStyle.alignment = TextAnchor.MiddleLeft;
 			tempStyle.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
@@ -103,6 +108,7 @@ namespace ScienceHardDrives {
 			customStyles.Add(tempStyle = new GUIStyle(gameSkin.label));
 			tempStyle.name = "expandLabel";
 			tempStyle.margin = new RectOffset(4, 0, 0, 0);
+			tempStyle.padding = new RectOffset(0, 0, 0, 0);
 			tempStyle.fixedHeight = 18f;
 			tempStyle.fixedWidth = 20f;
 			tempStyle.alignment = TextAnchor.MiddleCenter;
@@ -112,8 +118,8 @@ namespace ScienceHardDrives {
 			customStyles.Add(tempStyle = new GUIStyle(expSkin.FindStyle("discard button")));
 			tempStyle.name = "transferButton";
 			tempStyle.normal.background = managerTransferNormal;
-			tempStyle.normal.textColor = ConvertColor(164, 45, 208);
-			//TODO: Hover & Active GUIStyleStates
+			tempStyle.hover.background = managerTransferOver;
+			tempStyle.active.background = managerTransferActive;
 			Print("transferButton added.");
 
 			customStyles.Add(tempStyle = new GUIStyle(expSkin.button));
@@ -138,6 +144,8 @@ namespace ScienceHardDrives {
 			dataIcon = AssetBase.GetTexture("resultsdialog_datasize");
 			scienceIcon = AssetBase.GetTexture("resultsdialog_scivalue");
 			managerTransferNormal = GameDatabase.Instance.GetTexture(textureLocation + "manager_transfer_normal", false);
+			managerTransferOver = GameDatabase.Instance.GetTexture(textureLocation + "manager_transfer_over", false);
+			managerTransferActive = GameDatabase.Instance.GetTexture(textureLocation + "manager_transfer_active", false);
 		}
 
 		#endregion
@@ -148,9 +156,13 @@ namespace ScienceHardDrives {
 			return new Color(r / 255f, g / 255f, b / 255f);
 		}
 
-		internal static void Print(string toPrint) {
+		private static void Print(string toPrint) {
+			Print("[DU]", toPrint);
+		}
+
+		internal static void Print(string abbr, string toPrint) {
 			if(debug) {
-				print("SirDargon [SHD]: " + toPrint);
+				print("SirDargon [" + abbr + "]:" + toPrint);
 			}
 		}
 
